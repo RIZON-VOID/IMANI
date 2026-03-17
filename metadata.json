@@ -1,0 +1,9 @@
+{
+  "name": "IMANI",
+  "description": "A halal social media platform designed as an ethical alternative to mainstream social networks, promoting Islamic values, community trust, and healthy digital habits.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

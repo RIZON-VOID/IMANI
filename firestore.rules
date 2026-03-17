@@ -1,0 +1,145 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (UID)
+    // Fields:
+    //   - uid: string (required)
+    //   - name: string (required)
+    //   - email: string (required)
+    //   - avatar: string
+    //   - role: string (user | admin)
+    //   - badges: list (strings)
+    //   - isVerified: bool
+    //
+    // Collection: applications
+    // Document ID: applicationId
+    // Fields:
+    //   - applicantUid: string (required)
+    //   - applicantName: string
+    //   - badgeRequested: string (required)
+    //   - reason: string (required)
+    //   - identityLink: string
+    // Collection: posts
+    // Document ID: postId
+    // Fields:
+    //   - type: string (USER | ORBIT)
+    //   - author: map (uid, name, avatar, badge, subtitle)
+    //   - content: string
+    //   - media: list (maps with url, type)
+    //   - visibility: string (public | friends | community)
+    //   - timestamp: timestamp
+    //   - likes: number
+    //   - comments: number
+    //   - shares: number
+    //   - moderationStatus: string (PENDING | APPROVED | FLAGGED | REJECTED)
+    //   - flagReason: string
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "ashurakhatunamitaamita@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() > 0 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && data.email.size() < 100;
+    }
+
+    function isValidApplication(data) {
+      return data.applicantUid is string &&
+             data.badgeRequested in ["Verified Scholar", "Community Elder", "Content Contributor"] &&
+             data.reason is string && data.reason.size() > 0 && data.reason.size() < 2000 &&
+             data.status in ["pending", "approved", "rejected"];
+    }
+
+    function isValidPost(data) {
+      return data.type in ['USER', 'ORBIT'] &&
+             data.author.uid is string &&
+             data.content is string && data.content.size() < 5000 &&
+             data.visibility in ['public', 'friends', 'community'] &&
+             data.likes is number &&
+             data.comments is number &&
+             data.shares is number &&
+             data.moderationStatus in ['PENDING', 'APPROVED', 'FLAGGED', 'REJECTED'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                      request.resource.data.role == 'user' && 
+                      (!('badges' in request.resource.data) || request.resource.data.badges.size() == 0) &&
+                      (!('isVerified' in request.resource.data) || request.resource.data.isVerified == false);
+      
+      allow update: if isAdmin() || (isOwner(userId) && 
+                      isValidUser(request.resource.data) &&
+                      request.resource.data.role == resource.data.role &&
+                      request.resource.data.badges == resource.data.badges &&
+                      request.resource.data.isVerified == resource.data.isVerified);
+    }
+
+    match /applications/{appId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.applicantUid == request.auth.uid);
+      
+      allow create: if isAuthenticated() && isValidApplication(request.resource.data) &&
+                      hasOnlyAllowedFields(['applicantUid', 'applicantName', 'badgeRequested', 'reason', 'identityLink', 'status', 'createdAt']);
+      
+      allow update: if isAdmin() && hasOnlyAllowedFields(['applicantUid', 'applicantName', 'badgeRequested', 'reason', 'identityLink', 'status', 'createdAt']);
+      
+      allow delete: if isAdmin();
+    }
+
+    match /posts/{postId} {
+      allow read: if isAuthenticated() && (
+        resource.data.moderationStatus == 'APPROVED' || 
+        resource.data.type == 'ORBIT' ||
+        isAdmin() || 
+        resource.data.author.uid == request.auth.uid
+      );
+
+      allow create: if isAuthenticated() && 
+                      request.resource.data.author.uid == request.auth.uid &&
+                      isValidPost(request.resource.data);
+
+      allow update: if isAuthenticated() && (
+        // Author can edit their own post
+        (resource.data.author.uid == request.auth.uid && 
+         request.resource.data.author.uid == resource.data.author.uid &&
+         isValidPost(request.resource.data)) ||
+        // Admin can moderate
+        (isAdmin() && hasOnlyAllowedFields(request.resource.data.keys()))
+      );
+
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.author.uid == request.auth.uid);
+    }
+  }
+}

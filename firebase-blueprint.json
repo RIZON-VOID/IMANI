@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information including trust badges and verification status.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique identifier for the user." },
+        "name": { "type": "string", "description": "Display name of the user." },
+        "email": { "type": "string", "description": "Email address of the user." },
+        "avatar": { "type": "string", "description": "URL to the user's avatar image." },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "System role of the user." },
+        "badges": { 
+          "type": "array", 
+          "items": { "type": "string" },
+          "description": "List of trust badges earned by the user (e.g., 'Verified Scholar')." 
+        },
+        "isVerified": { "type": "boolean", "description": "Whether the user's identity has been verified." }
+      },
+      "required": ["uid", "name", "email"]
+    },
+    "VerificationApplication": {
+      "title": "Verification Application",
+      "description": "An application submitted by a user for verification or a trust badge.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the application." },
+        "applicantUid": { "type": "string", "description": "UID of the user applying." },
+        "applicantName": { "type": "string", "description": "Name of the applicant." },
+        "badgeRequested": { 
+          "type": "string", 
+          "enum": ["Verified Scholar", "Community Elder", "Content Contributor"],
+          "description": "The specific badge the user is applying for."
+        },
+        "reason": { "type": "string", "description": "The user's justification for the badge." },
+        "identityLink": { "type": "string", "description": "Link to real-world identity (e.g., LinkedIn, Portfolio)." },
+        "status": { 
+          "type": "string", 
+          "enum": ["pending", "approved", "rejected"],
+          "description": "Current status of the application."
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the application was submitted." }
+      },
+      "required": ["applicantUid", "badgeRequested", "reason", "status", "createdAt"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "A social media post created by a user or the Orbit AI.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the post." },
+        "type": { "type": "string", "enum": ["USER", "ORBIT"], "description": "Type of post." },
+        "author": {
+          "type": "object",
+          "properties": {
+            "uid": { "type": "string" },
+            "name": { "type": "string" },
+            "avatar": { "type": "string" },
+            "badge": { "type": "string" }
+          },
+          "required": ["uid", "name", "avatar"]
+        },
+        "content": { "type": "string", "description": "Text content of the post." },
+        "media": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "url": { "type": "string" },
+              "type": { "type": "string", "enum": ["image", "video"] }
+            },
+            "required": ["url", "type"]
+          }
+        },
+        "visibility": { "type": "string", "enum": ["public", "friends", "community"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "likes": { "type": "integer" },
+        "comments": { "type": "integer" },
+        "shares": { "type": "integer" },
+        "moderationStatus": { "type": "string", "enum": ["PENDING", "APPROVED", "FLAGGED", "REJECTED"] },
+        "flagReason": { "type": "string" }
+      },
+      "required": ["type", "author", "content", "visibility", "timestamp", "moderationStatus"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles."
+    },
+    "/applications/{applicationId}": {
+      "schema": "VerificationApplication",
+      "description": "Collection of verification and badge applications."
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Collection of community posts."
+    }
+  }
+}
